@@ -430,7 +430,7 @@ describe( 'RestrictedEditingModeEditing', () => {
 			await editor.destroy();
 		} );
 
-		it( 'should not allow to delete content outside restricted area', () => {
+		it( 'should not allow to change attributes outside restricted area', () => {
 			setModelData( model, '<paragraph><$text link="true">[]foo bar</$text> baz</paragraph>' );
 			const firstParagraph = model.document.getRoot().getChild( 0 );
 			addExceptionMarker( 4, 7, firstParagraph );
@@ -445,7 +445,7 @@ describe( 'RestrictedEditingModeEditing', () => {
 			assertEqualMarkup( getModelData( model ), '<paragraph><$text link="true">[]foo bar</$text> baz</paragraph>' );
 		} );
 
-		it( 'should trim deleted content to an exception marker (end in marker)', () => {
+		it( 'should keep attributes outside an exception marker (end in marker)', () => {
 			setModelData( model, '<paragraph><$text link="true">[]foo bar</$text> baz</paragraph>' );
 			const firstParagraph = model.document.getRoot().getChild( 0 );
 			addExceptionMarker( 4, 7, firstParagraph );
@@ -460,7 +460,7 @@ describe( 'RestrictedEditingModeEditing', () => {
 			assertEqualMarkup( getModelData( model ), '<paragraph><$text link="true">[]foo </$text>bar baz</paragraph>' );
 		} );
 
-		it( 'should trim deleted content to an exception marker (start in marker)', () => {
+		it( 'should should keep attributes outside an exception marker (start in marker)', () => {
 			setModelData( model, '<paragraph><$text link="true">[]foo bar baz</$text></paragraph>' );
 			const firstParagraph = model.document.getRoot().getChild( 0 );
 			addExceptionMarker( 4, 7, firstParagraph );
@@ -478,7 +478,7 @@ describe( 'RestrictedEditingModeEditing', () => {
 			);
 		} );
 
-		it( 'should trim deleted content to an exception marker (start and ends outside a marker)', () => {
+		it( 'should should keep attributes outside an exception marker (start and ends outside a marker)', () => {
 			setModelData( model, '<paragraph><$text link="true">[]foo bar baz</$text></paragraph>' );
 			const firstParagraph = model.document.getRoot().getChild( 0 );
 			addExceptionMarker( 4, 7, firstParagraph );
@@ -496,7 +496,7 @@ describe( 'RestrictedEditingModeEditing', () => {
 			);
 		} );
 
-		it( 'should trim deleted content to an exception marker (start and ends outside a marker - intersecting many markers)', () => {
+		it( 'should should keep attribute outside multiple exception markers', () => {
 			setModelData( model, '<paragraph><$text link="true">[]foo bar baz</$text></paragraph>' );
 			const firstParagraph = model.document.getRoot().getChild( 0 );
 			addExceptionMarker( 1, 2, firstParagraph );
@@ -518,6 +518,35 @@ describe( 'RestrictedEditingModeEditing', () => {
 					'<$text link="true">b</$text>' +
 					'a' + // Third marker.
 					'<$text link="true">r baz</$text>' +
+				'</paragraph>' );
+		} );
+
+		it( 'should should keep multiple attributes outside multiple exception markers', () => {
+			setModelData( model, '<paragraph><$text bold="true" link="true">[]foo bar baz</$text></paragraph>' );
+			const firstParagraph = model.document.getRoot().getChild( 0 );
+			addExceptionMarker( 1, 2, firstParagraph );
+			addExceptionMarker( 3, 4, firstParagraph, 2 );
+			addExceptionMarker( 5, 6, firstParagraph, 3 );
+
+			model.change( writer => {
+				writer.removeAttribute( 'link', writer.createRange(
+					writer.createPositionAt( firstParagraph, 0 ),
+					writer.createPositionAt( firstParagraph, 'end' )
+				) );
+				writer.removeAttribute( 'bold', writer.createRange(
+					writer.createPositionAt( firstParagraph, 0 ),
+					writer.createPositionAt( firstParagraph, 'end' )
+				) );
+			} );
+
+			assertEqualMarkup( getModelData( model ), '<paragraph>' +
+				'<$text bold="true" link="true">[]f</$text>' +
+				'o' + // First marker.
+				'<$text bold="true" link="true">o</$text>' +
+				' ' + // Second marker.
+				'<$text bold="true" link="true">b</$text>' +
+				'a' + // Third marker.
+				'<$text bold="true" link="true">r baz</$text>' +
 				'</paragraph>' );
 		} );
 	} );

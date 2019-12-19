@@ -315,6 +315,64 @@ describe( 'RestrictedEditingModeEditing', () => {
 			expect( markerRange.isEqual( expectedRange ) ).to.be.true;
 		} );
 
+		it( 'should retain marker on non-typing change at the marker boundary (start)', () => {
+			setModelData( model, '<paragraph>foo bar[] baz</paragraph>' );
+			const firstParagraph = model.document.getRoot().getChild( 0 );
+			addExceptionMarker( 4, 7, firstParagraph );
+
+			model.change( writer => {
+				editor.execute( 'delete', {
+					selection: writer.createSelection( writer.createRange(
+						writer.createPositionAt( firstParagraph, 4 ),
+						writer.createPositionAt( firstParagraph, 6 )
+					) )
+				} );
+				editor.execute( 'input', {
+					text: 'XX',
+					range: writer.createRange( writer.createPositionAt( firstParagraph, 4 ) )
+				} );
+			} );
+
+			assertEqualMarkup( getModelData( model ), '<paragraph>foo XX[]r baz</paragraph>' );
+
+			const markerRange = editor.model.markers.get( 'restrictedEditingException:1' ).getRange();
+			const expectedRange = model.createRange(
+				model.createPositionAt( firstParagraph, 4 ),
+				model.createPositionAt( firstParagraph, 7 )
+			);
+
+			expect( markerRange.isEqual( expectedRange ) ).to.be.true;
+		} );
+
+		it( 'should retain marker on non-typing change at marker boundary (end)', () => {
+			setModelData( model, '<paragraph>foo bar[] baz</paragraph>' );
+			const firstParagraph = model.document.getRoot().getChild( 0 );
+			addExceptionMarker( 4, 7, firstParagraph );
+
+			model.change( writer => {
+				editor.execute( 'delete', {
+					selection: writer.createSelection( writer.createRange(
+						writer.createPositionAt( firstParagraph, 5 ),
+						writer.createPositionAt( firstParagraph, 7 )
+					) )
+				} );
+				editor.execute( 'input', {
+					text: 'XX',
+					range: writer.createRange( writer.createPositionAt( firstParagraph, 5 ) )
+				} );
+			} );
+
+			assertEqualMarkup( getModelData( model ), '<paragraph>foo bXX[] baz</paragraph>' );
+
+			const markerRange = editor.model.markers.get( 'restrictedEditingException:1' ).getRange();
+			const expectedRange = model.createRange(
+				model.createPositionAt( firstParagraph, 4 ),
+				model.createPositionAt( firstParagraph, 7 )
+			);
+
+			expect( markerRange.isEqual( expectedRange ) ).to.be.true;
+		} );
+
 		it( 'should not move collapsed marker to $graveyard', () => {
 			setModelData( model, '<paragraph>foo b[]ar baz</paragraph>' );
 			const firstParagraph = model.document.getRoot().getChild( 0 );
@@ -415,6 +473,19 @@ describe( 'RestrictedEditingModeEditing', () => {
 			editor.execute( 'delete', { unit: 'word' } );
 
 			assertEqualMarkup( getModelData( model ), '<paragraph>foo[] bar baz</paragraph>' );
+		} );
+
+		it( 'should work with document selection', () => {
+			setModelData( model, '<paragraph>f[oo bar] baz</paragraph>' );
+			const firstParagraph = model.document.getRoot().getChild( 0 );
+
+			addExceptionMarker( 2, 'end', firstParagraph );
+
+			model.change( () => {
+				model.deleteContent( model.document.selection );
+			} );
+
+			assertEqualMarkup( getModelData( model, { withoutSelection: true } ), '<paragraph>fo baz</paragraph>' );
 		} );
 	} );
 

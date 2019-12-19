@@ -329,10 +329,20 @@ function restrictDeleteContent( editor ) {
 			return;
 		}
 
+		// Shrink the selection to the range inside exception marker.
 		const allowedToDelete = marker.getRange().getIntersection( selection.getFirstRange() );
 
-		// Shrink the selection to the range inside exception marker.
-		selection.setTo( allowedToDelete );
+		// Some features uses selection passed to model.deleteContent() to set the selection afterwards. For this we need to properly modify
+		// either the document selection using change block...
+		if ( selection.is( 'documentSelection' ) ) {
+			editor.model.change( writer => {
+				writer.setSelection( allowedToDelete );
+			} );
+		}
+		// ... or by modifying passed selection instance directly.
+		else {
+			selection.setTo( allowedToDelete );
+		}
 	};
 }
 

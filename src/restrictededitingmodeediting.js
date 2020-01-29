@@ -174,6 +174,7 @@ export default class RestrictedEditingModeEditing extends Plugin {
 	_setupRestrictions() {
 		const editor = this.editor;
 
+		editor.model.document.registerPostFixer( attributeOutsideExceptionMarkersPostFixer( editor ) );
 		this.listenTo( editor.model, 'deleteContent', restrictDeleteContent( editor ), { priority: 'high' } );
 
 		const inputCommand = this.editor.commands.get( 'input' );
@@ -370,4 +371,75 @@ function isRangeInsideSingleMarker( editor, range ) {
 	const markerAtEnd = getMarkerAtPosition( editor, range.end );
 
 	return markerAtStart && markerAtEnd && markerAtEnd === markerAtStart;
+}
+
+// Returns a post-fixer that reverts attributes changes made outside exception markers.
+function attributeOutsideExceptionMarkersPostFixer( editor ) {
+	return writer => {
+		let changeApplied = false;
+
+		for ( const change of editor.model.document.differ.getChanges() ) {
+			if ( change.type === 'attribute' ) {
+				const { range, attributeKey, attributeOldValue } = change;
+
+				if ( !isRangeInsideSingleMarker( editor, range ) ) {
+					const markersRanges = Array.from( editor.model.markers.getMarkersIntersectingRange( range ) )
+						.map( marker => marker.getRange() );
+
+					const rangesToRevert = getMultiRangeDifference( range, markersRanges );
+
+					for ( const range of rangesToRevert ) {
+						writer.setAttribute( attributeKey, attributeOldValue, range );
+
+						changeApplied = true;
+					}
+				}
+			}
+		}
+
+		return changeApplied;
+	};
+}
+
+// Calculates a difference of one range with many ranges (exclusion).
+//
+// Example:
+// - range: [ 0, 9 ]
+// - otherRanges: [ 1, 3 ], [ 6, 8 ]
+// - result ranges: [ 0, 1 ], [ 3, 6 ], [ 8, 9 ]
+//
+//
+// Base range:             Rs                Re
+//                         |                 |
+//              <paragraph> A B C D E F G H I </paragraph>
+// Positions:              0 1 2 3 4 5 6 7 8 9
+//                           ^   ^     ^   ^
+// Other ranges:             As  Ae    |   |
+//                                     Bs  Be
+//
+// For the above ranges a difference range will contain this text nodes: [ 'A', 'DEF', 'I' ]
+//
+// @param {module:engine/model/range~Range} range
+// @param {Array.<module:engine/model/range~Range>} otherRanges
+// @returns {Array.<module:engine/model/range~Range>} Array with a difference.
+function getMultiRangeDifference( range, otherRanges ) {
+	const rangesToRevert = [ range ];
+
+	for ( const otherRange of otherRanges ) {
+		const chops = [];
+
+		for ( const fooRange of rangesToRevert ) {
+			if ( fooRange.isIntersecting( otherRange ) ) {
+				const differences = fooRange.getDifference( otherRange );
+
+				chops.push( ...differences );
+			} else {
+				chops.push( fooRange );
+			}
+		}
+
+		rangesToRevert.splice( 0, rangesToRevert.length, ...chops );
+	}
+
+	return rangesToRevert;
 }

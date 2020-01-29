@@ -489,6 +489,139 @@ describe( 'RestrictedEditingModeEditing', () => {
 		} );
 	} );
 
+	describe( 'enforcing restrictions on remove attribute operation', () => {
+		beforeEach( async () => {
+			editor = await VirtualTestEditor.create( { plugins: [ Paragraph, Typing, RestrictedEditingModeEditing ] } );
+			model = editor.model;
+
+			editor.model.schema.extend( '$text', { allowAttributes: [ 'link' ] } );
+		} );
+
+		afterEach( async () => {
+			await editor.destroy();
+		} );
+
+		it( 'should not allow to change attributes outside restricted area', () => {
+			setModelData( model, '<paragraph><$text link="true">[]foo bar</$text> baz</paragraph>' );
+			const firstParagraph = model.document.getRoot().getChild( 0 );
+			addExceptionMarker( 4, 7, firstParagraph );
+
+			model.change( writer => {
+				writer.removeAttribute( 'link', writer.createRange(
+					writer.createPositionAt( firstParagraph, 0 ),
+					writer.createPositionAt( firstParagraph, 1 )
+				) );
+			} );
+
+			assertEqualMarkup( getModelData( model ), '<paragraph><$text link="true">[]foo bar</$text> baz</paragraph>' );
+		} );
+
+		it( 'should keep attributes outside an exception marker (end in marker)', () => {
+			setModelData( model, '<paragraph><$text link="true">[]foo bar</$text> baz</paragraph>' );
+			const firstParagraph = model.document.getRoot().getChild( 0 );
+			addExceptionMarker( 4, 7, firstParagraph );
+
+			model.change( writer => {
+				writer.removeAttribute( 'link', writer.createRange(
+					writer.createPositionAt( firstParagraph, 0 ),
+					writer.createPositionAt( firstParagraph, 7 )
+				) );
+			} );
+
+			assertEqualMarkup( getModelData( model ), '<paragraph><$text link="true">[]foo </$text>bar baz</paragraph>' );
+		} );
+
+		it( 'should should keep attributes outside an exception marker (start in marker)', () => {
+			setModelData( model, '<paragraph><$text link="true">[]foo bar baz</$text></paragraph>' );
+			const firstParagraph = model.document.getRoot().getChild( 0 );
+			addExceptionMarker( 4, 7, firstParagraph );
+
+			model.change( writer => {
+				writer.removeAttribute( 'link', writer.createRange(
+					writer.createPositionAt( firstParagraph, 5 ),
+					writer.createPositionAt( firstParagraph, 8 )
+				) );
+			} );
+
+			assertEqualMarkup(
+				getModelData( model ),
+				'<paragraph><$text link="true">[]foo b</$text>ar<$text link="true"> baz</$text></paragraph>'
+			);
+		} );
+
+		it( 'should should keep attributes outside an exception marker (start and ends outside a marker)', () => {
+			setModelData( model, '<paragraph><$text link="true">[]foo bar baz</$text></paragraph>' );
+			const firstParagraph = model.document.getRoot().getChild( 0 );
+			addExceptionMarker( 4, 7, firstParagraph );
+
+			model.change( writer => {
+				writer.removeAttribute( 'link', writer.createRange(
+					writer.createPositionAt( firstParagraph, 0 ),
+					writer.createPositionAt( firstParagraph, 'end' )
+				) );
+			} );
+
+			assertEqualMarkup(
+				getModelData( model ),
+				'<paragraph><$text link="true">[]foo </$text>bar<$text link="true"> baz</$text></paragraph>'
+			);
+		} );
+
+		it( 'should should keep attribute outside multiple exception markers', () => {
+			setModelData( model, '<paragraph><$text link="true">[]foo bar baz</$text></paragraph>' );
+			const firstParagraph = model.document.getRoot().getChild( 0 );
+			addExceptionMarker( 1, 2, firstParagraph );
+			addExceptionMarker( 3, 4, firstParagraph, 2 );
+			addExceptionMarker( 5, 6, firstParagraph, 3 );
+
+			model.change( writer => {
+				writer.removeAttribute( 'link', writer.createRange(
+					writer.createPositionAt( firstParagraph, 0 ),
+					writer.createPositionAt( firstParagraph, 'end' )
+				) );
+			} );
+
+			assertEqualMarkup( getModelData( model ), '<paragraph>' +
+					'<$text link="true">[]f</$text>' +
+					'o' + // First marker.
+					'<$text link="true">o</$text>' +
+					' ' + // Second marker.
+					'<$text link="true">b</$text>' +
+					'a' + // Third marker.
+					'<$text link="true">r baz</$text>' +
+				'</paragraph>' );
+		} );
+
+		it( 'should should keep multiple attributes outside multiple exception markers', () => {
+			setModelData( model, '<paragraph><$text bold="true" link="true">[]foo bar baz</$text></paragraph>' );
+			const firstParagraph = model.document.getRoot().getChild( 0 );
+			addExceptionMarker( 1, 2, firstParagraph );
+			addExceptionMarker( 3, 4, firstParagraph, 2 );
+			addExceptionMarker( 5, 6, firstParagraph, 3 );
+
+			model.change( writer => {
+				writer.removeAttribute( 'link', writer.createRange(
+					writer.createPositionAt( firstParagraph, 0 ),
+					writer.createPositionAt( firstParagraph, 'end' )
+				) );
+				writer.removeAttribute( 'bold', writer.createRange(
+					writer.createPositionAt( firstParagraph, 0 ),
+					writer.createPositionAt( firstParagraph, 'end' )
+				) );
+			} );
+
+			assertEqualMarkup( getModelData( model ), '<paragraph>' +
+				'<$text bold="true" link="true">[]f</$text>' +
+				'o' + // First marker.
+				'<$text bold="true" link="true">o</$text>' +
+				' ' + // Second marker.
+				'<$text bold="true" link="true">b</$text>' +
+				'a' + // Third marker.
+				'<$text bold="true" link="true">r baz</$text>' +
+				'</paragraph>' );
+		} );
+	} );
+
 	describe( 'enforcing restrictions on input command', () => {
 		let firstParagraph;
 
